@@ -10,7 +10,7 @@ update() {
 # Function to install network debugging tools
 install_network_debug_tools() {
   echo "Installing network debugging tools..."  
-  sudo apt install net-tools nload tcpdump dnsutils nmap iptables iperf3 traceroute mtr -y
+  sudo apt install net-tools nload tcpdump nmap iptables traceroute mtr -y
 }
 
 # Function to install btop - an interactive system/resource monitor
@@ -89,8 +89,19 @@ install_nodejs() {
     echo "Installing nodejs..."
     echo "Installing nvm (Node Version Manager)..."
     curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
-    source ~/.bashrc 
+
+    echo 'export NVM_DIR="$HOME/.nvm"' >> ~/.bashrc
+    echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> ~/.bashrc
+    echo '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"' >> ~/.bashrc
+
+    echo 'export NVM_DIR="$HOME/.nvm"' >> ~/.profile
+    echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> ~/.profile
+    echo '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"' >> ~/.profile
+
+    # Load changes
+    source ~/.bashrc
     source ~/.profile
+
     echo "Installing Node.js..."
     nvm install node
     npm install -g npm@latest
@@ -101,73 +112,6 @@ install_nodejs() {
 install_oh_my_bash() {
   echo "Installing Oh My Bash..."
   bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)"
-}
-
-check_and_apply_rule() {
-  local rule="$1"
-  local table="${2:-filter}" # Default to filter table if not specified
-
-  if ! sudo iptables -t $table -C $rule 2>/dev/null; then
-    # Rule does not exist, apply it
-    echo "Applying rule to $table table: $rule"
-    sudo iptables -t $table -A $rule
-  else
-    echo "Rule already exists in $table table: $rule"
-  fi
-}
-
-apply_and_persist_iptables() {
-  echo "Applying basic iptables rules for networking security..."
-  # List of iptables rules to apply
-  # Format: "table rule"
-  local rules=(
-    "mangle PREROUTING -f -j DROP"
-    "mangle PREROUTING -p tcp --tcp-flags ALL SYN,RST,ACK,FIN,URG -j DROP"
-    "mangle PREROUTING -p tcp --tcp-flags ALL SYN,FIN,PSH,URG -j DROP"
-    "mangle PREROUTING -p tcp --tcp-flags ALL FIN,PSH,URG -j DROP"
-    "mangle PREROUTING -p tcp --tcp-flags FIN,RST FIN,RST -j DROP"
-    "mangle PREROUTING -p tcp --tcp-flags SYN,FIN SYN,FIN -j DROP"
-    "mangle PREROUTING -p tcp --tcp-flags SYN,RST SYN,RST -j DROP"
-    "mangle PREROUTING -p tcp --tcp-flags FIN,SYN FIN,SYN -j DROP"
-    "mangle PREROUTING -p tcp --tcp-flags FIN,ACK FIN -j DROP"
-    "mangle PREROUTING -p tcp --tcp-flags ACK,URG URG -j DROP"
-    "mangle PREROUTING -p tcp --tcp-flags ACK,FIN FIN -j DROP"
-    "mangle PREROUTING -p tcp --tcp-flags ACK,PSH PSH -j DROP"
-    "mangle PREROUTING -p tcp --tcp-flags ALL NONE -j DROP"
-    "mangle PREROUTING -p tcp --tcp-flags ALL ALL -j DROP"
-    "mangle PREROUTING -m conntrack --ctstate INVALID -j DROP"
-    "mangle PREROUTING -p tcp ! --syn -m conntrack --ctstate NEW -j DROP"
-    "mangle PREROUTING -p tcp ! --syn -m state --state NEW -j DROP"
-    "mangle PREROUTING -p tcp --syn ! --sport 1024:65535 -j DROP"
-    "mangle PREROUTING -p tcp -m conntrack --ctstate NEW -m tcpmss ! --mss 536:65535 -j DROP"
-    "raw PREROUTING -p tcp --tcp-flags RST RST -m hashlimit --hashlimit-mode srcip --hashlimit-name rstflood --hashlimit-above 1/s --hashlimit-burst 2 --hashlimit-srcmask 2 -j DROP"
-    "raw OUTPUT -p tcp --tcp-flags RST RST -m limit --limit 1/s -j ACCEPT"
-    "raw OUTPUT -p tcp --tcp-flags RST RST -j DROP"
-    "raw OUTPUT -p icmp -m limit --limit 1/s --limit-burst 2 -j ACCEPT"
-    "raw OUTPUT -p icmp -j DROP"
-  )
-
-  # Iterate over rules and apply them if they don't already exist
-  for rule in "${rules[@]}"; do
-    local table=$(echo "$rule" | awk '{print $1}')
-    local rule_body=$(echo "$rule" | cut -d' ' -f2-)
-    check_and_apply_rule "$rule_body" "$table"
-  done
-
-  # Install iptables-persistent to save the rules across reboots
-  echo "Checking for iptables-persistent installation..."
-  if ! dpkg -l | grep -qw netfilter-persistent; then
-    echo "Installing iptables-persistent to save iptables rules across reboots..."
-    sudo apt-get install netfilter-persistent -y
-  else
-    echo "iptables-persistent is already installed."
-  fi
-
-  # Save the current iptables rules
-  echo "Saving iptables rules..."
-  sudo netfilter-persistent save
-
-  echo "iptables rules applied and saved for persistence."
 }
 
 
@@ -189,15 +133,15 @@ ask_yes_no() {
   done
 }
 
-if ask_yes_no "Do you want to install network debugging tools?"; then
+if ask_yes_no "Do you want to install nload tcpdump nmap iptables traceroute mtr?"; then
   install_network_debug_tools
 fi
 
-if ask_yes_no "Do you want to install system essentials?"; then
+if ask_yes_no "Do you want to install btop neofetch git curl sudo make unzip wget and more?"; then
   install_stuff
 fi
 
-if ask_yes_no "Do you want to install CrowdSec and some scenarios?"; then
+if ask_yes_no "Do you want to install CrowdSec and scenarios?"; then
   install_crowdsec
 fi
 
@@ -217,9 +161,5 @@ if ask_yes_no "Do you want to install Oh My Bash?"; then
   install_oh_my_bash
 fi
 
-
-if ask_yes_no "Do you want to apply basic iptables rules for networking security and make them persistent?"; then
-  apply_and_persist_iptables
-fi
 
 echo "Installation complete!"
